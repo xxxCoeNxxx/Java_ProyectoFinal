@@ -1,9 +1,11 @@
-//COMANDOS A INTRODUCIR EN SPARK-SHELL
+//EJECUTAR CON spark-shell -i ejecutar311.scala
+//COMANDOS A INTRODUCIR EN SPARK-SHELL 
 
 import org.apache.spark.sql.functions._
 import spark.implicits._
 
 val fileName = "311_2.csv"
+
 val df = spark.read.option("header", "true").option("inferSchema", "true").csv(fileName)
 
 val colSinEspaciosDF = df.columns.foldLeft(df) { (tempDF, colName) => tempDF.withColumnRenamed(colName, colName.replace(" ", "_"))}
@@ -49,3 +51,22 @@ val resultadoFormateadoDF = promedioDF
   .orderBy(desc("dias"))
 
 resultadoFormateadoDF.show(truncate = false)
+
+
+val totalNucleos = spark.sparkContext.defaultParallelism
+
+val nucleosAsignados = Math.round(totalNucleos * 0.8).toInt
+
+val anioDF = cleanDF.withColumn("anio", year(col("Created_Date")))
+
+val partitionsDF = anioDF.repartition(nucleosAsignados, col("anio"), col("Borough"))
+
+println(s"Total nucleos: $totalNucleos")
+println(s"Nucleos asignados: $nucleosAsignados")
+println(s"Particiones asignadas: ${partitionsDF.rdd.getNumPartitions}\n")
+
+partitionsDF.write
+  .mode("overwrite")
+  .partitionBy("anio", "Borough")
+  .parquet("datos_particionados")
+
